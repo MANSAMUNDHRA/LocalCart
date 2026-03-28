@@ -22,9 +22,10 @@ export default function HomeScreen({ navigation }: any) {
   const [showRadius, setShowRadius] = useState(false);
 
   const vendorsWithDistance = useMemo(() => {
-    return VENDORS.map((v) => ({ ...v, distance: calcDistance(v.latitude, v.longitude) }))
-      .filter((v) => v.distance <= radius)
-      .sort((a, b) => a.distance - b.distance);
+    const all = VENDORS.map((v) => ({ ...v, distance: calcDistance(v.latitude, v.longitude) }));
+    const inRadius = all.filter((v) => v.distance <= radius).sort((a, b) => a.distance - b.distance);
+    // ✅ Fallback: if nothing in radius (e.g. GPS mismatch), show all vendors sorted by distance
+    return inRadius.length > 0 ? inRadius : all.sort((a, b) => a.distance - b.distance);
   }, [radius, calcDistance]);
 
   const filteredVendors = useMemo(() => {
@@ -111,9 +112,22 @@ export default function HomeScreen({ navigation }: any) {
           </View>
         </View>
 
+        {/* Promo Banner */}
+        <View className="mx-5 mt-4 rounded-2xl overflow-hidden"
+          style={{ backgroundColor: '#FF7A30' }}>
+          <View className="px-5 py-4 flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text className="text-white text-xs font-semibold opacity-80">LIMITED TIME OFFER</Text>
+              <Text className="text-white text-lg font-bold mt-0.5">First order 20% off 🎉</Text>
+              <Text className="text-white text-xs opacity-70 mt-1">Use code: LOCALMART20</Text>
+            </View>
+            <Text style={{ fontSize: 48 }}>🛍️</Text>
+          </View>
+        </View>
+
         {/* Categories */}
         <View className="mt-5">
-          <Text className="text-base font-bold text-gray-900 px-5 mb-3">Categories</Text>
+          <Text className="text-base font-bold text-gray-900 px-5 mb-3">Shop by Category</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
             <TouchableOpacity onPress={() => setSelectedCategory(null)} className="items-center mr-3">
               <View className="w-16 h-16 rounded-2xl items-center justify-center mb-1.5"
@@ -140,7 +154,7 @@ export default function HomeScreen({ navigation }: any) {
         {!searchQuery && !selectedCategory && (
           <View className="mt-6">
             <View className="flex-row items-center justify-between px-5 mb-3">
-              <Text className="text-base font-bold text-gray-900">Nearby Vendors</Text>
+              <Text className="text-base font-bold text-gray-900">⭐ Top Rated Near You</Text>
               <TouchableOpacity onPress={() => navigation.navigate('Map')}>
                 <Text className="text-sm font-semibold" style={{ color: '#FF7A30' }}>View Map</Text>
               </TouchableOpacity>
@@ -161,7 +175,7 @@ export default function HomeScreen({ navigation }: any) {
         {/* All vendors list */}
         <View className="mt-6 px-5 pb-6">
           <Text className="text-base font-bold text-gray-900 mb-3">
-            {selectedCategory ? `${selectedCategory} Vendors` : 'All Vendors'}
+            {selectedCategory ? `${selectedCategory} Vendors` : '🏪 All Vendors'}
             <Text className="text-sm font-normal text-gray-500"> ({filteredVendors.length})</Text>
           </Text>
           {filteredVendors.length === 0 ? (

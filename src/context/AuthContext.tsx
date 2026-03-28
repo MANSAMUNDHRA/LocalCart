@@ -1,3 +1,4 @@
+// src/context/AuthContext.tsx
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Vendor, Buyer } from '../types';
 
@@ -5,6 +6,7 @@ interface AuthState {
   user: (Buyer | Vendor) | null;
   role: 'buyer' | 'vendor' | null;
   isLoggedIn: boolean;
+  isLoading: boolean; // ✅ Added
 }
 
 interface AuthContextType extends AuthState {
@@ -18,28 +20,22 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [state, setState] = useState<AuthState>({
-    user: {
-      id: 'b_demo',
-      name: 'Demo Buyer',
-      email: 'buyer@localmart.com',
-      phone: '9999999999',
-      role: 'buyer',
-      deliveryAddress: 'Koramangala Bangalore',
-    },
-    role: 'buyer',
-    isLoggedIn: true,
+    user: null,
+    role: null,
+    isLoggedIn: false,
+    isLoading: false, // ✅ Added — set true if you ever do async auth (e.g. AsyncStorage)
   });
 
   const loginAsBuyer = (buyer: Buyer) => {
-    setState({ user: buyer, role: 'buyer', isLoggedIn: true });
+    setState({ user: buyer, role: 'buyer', isLoggedIn: true, isLoading: false });
   };
 
   const loginAsVendor = (vendor: Vendor) => {
-    setState({ user: vendor, role: 'vendor', isLoggedIn: true });
+    setState({ user: vendor, role: 'vendor', isLoggedIn: true, isLoading: false });
   };
 
   const logout = () => {
-    setState({ user: null, role: null, isLoggedIn: false });
+    setState({ user: null, role: null, isLoggedIn: false, isLoading: false });
   };
 
   const switchRole = (role: 'buyer' | 'vendor') => {

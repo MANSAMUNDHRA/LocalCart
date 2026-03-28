@@ -15,7 +15,7 @@ export default function AddProductScreen({ navigation }: any) {
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, // ✅ Fixed
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.8,

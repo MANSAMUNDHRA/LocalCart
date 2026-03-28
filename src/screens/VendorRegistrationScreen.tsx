@@ -33,7 +33,7 @@ export default function VendorRegistrationScreen({ navigation }: any) {
 
   const pickImage = async (multi = false) => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, // ✅ Fixed
       allowsEditing: !multi,
       aspect: [1, 1],
       quality: 0.8,
@@ -56,7 +56,6 @@ export default function VendorRegistrationScreen({ navigation }: any) {
       setCapturedCoords(coords);
       Alert.alert('📍 Location captured', `Lat: ${coords.latitude.toFixed(5)}, Lng: ${coords.longitude.toFixed(5)}`);
     } else {
-      // fallback
       const fallback = { latitude: 12.9716, longitude: 77.5946 };
       setCapturedCoords(fallback);
       Alert.alert('Location', 'Using approximate location — Bangalore centre.');

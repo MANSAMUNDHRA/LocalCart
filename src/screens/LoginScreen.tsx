@@ -9,10 +9,10 @@ import { useAuth } from '../context/AuthContext';
 export default function LoginScreen({ navigation }: any) {
   const { switchRole } = useAuth();
   const [mode, setMode] = useState<'select' | 'buyer' | 'vendor'>('select');
-  const [email, setEmail]     = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName]       = useState('');
-  const [phone, setPhone]     = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [isLogin, setIsLogin] = useState(true);
 

@@ -16,27 +16,39 @@ interface LocationContextType {
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
+// ✅ Always start with Bangalore so mock vendors are always visible
 const DEFAULT_LOCATION: LocationCoords = { latitude: 12.9716, longitude: 77.5946 };
 
 export const LocationProvider = ({ children }: { children: ReactNode }) => {
-  const [location, setLocation] = useState<LocationCoords | null>(null);
-  const [radius, setRadius] = useState(10);
-  const [locationName, setLocationName] = useState('Bangalore');
-  const [loading, setLoading] = useState(true);
+  // ✅ Initialize with DEFAULT_LOCATION immediately — never null on first render
+  const [location, setLocation] = useState<LocationCoords>(DEFAULT_LOCATION);
+  const [radius, setRadius] = useState(25); // ✅ Wider default radius for demo
+  const [locationName, setLocationName] = useState('Bangalore, India');
+  const [loading, setLoading] = useState(false); // ✅ No blocking load spinner
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    // Try to get real GPS in background — but don't block UI
     (async () => {
-      const coords = await getCurrentLocation();
-      if (coords) {
-        setLocation(coords);
-        const name = await reverseGeocode(coords);
-        setLocationName(name);
-      } else {
-        setErrorMsg('Using default location — Bangalore');
-        setLocation(DEFAULT_LOCATION);
+      try {
+        const coords = await getCurrentLocation();
+        if (coords) {
+          // Only use real GPS if it's near Bangalore (for demo purposes)
+          // Otherwise keep mock location so vendors still show
+          const distFromBangalore = getDistance(
+            coords.latitude, coords.longitude,
+            DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude
+          );
+          if (distFromBangalore < 50) {
+            setLocation(coords);
+            const name = await reverseGeocode(coords);
+            setLocationName(name);
+          }
+          // If far away (e.g. running from Netherlands), stay on Bangalore
+        }
+      } catch {
+        // Silently keep default location
       }
-      setLoading(false);
     })();
   }, []);
 
@@ -47,7 +59,6 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const calcDistance = (lat: number, lng: number): number => {
-    if (!location) return 0;
     return getDistance(location.latitude, location.longitude, lat, lng);
   };
 

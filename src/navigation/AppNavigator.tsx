@@ -1,13 +1,14 @@
+// src/navigation/AppNavigator.tsx
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { View, Text } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 
-// Screens
+// ✅ Clean imports — no more try/catch require blocks
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import VendorProfileScreen from '../screens/VendorProfileScreen';
@@ -40,15 +41,42 @@ const TAB_BAR_STYLE = {
 
 function BuyerTabs() {
   const { totalItems } = useCart();
+  const { logout, user } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: logout }
+      ]
+    );
+  };
 
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
         tabBarStyle: TAB_BAR_STYLE,
         tabBarActiveTintColor: '#FF7A30',
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        headerTitle: () => (
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F1F1F' }}>LocalMart</Text>
+            <Text style={{ fontSize: 12, color: '#6B6B6B' }}>Hello, {user?.name || 'Buyer'}</Text>
+          </View>
+        ),
+        headerRight: () => (
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={{ marginRight: 15 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={24} color="#FF7A30" />
+          </TouchableOpacity>
+        ),
       }}
     >
       <Tab.Screen
@@ -101,14 +129,46 @@ function BuyerTabs() {
 }
 
 function VendorTabs() {
+  const { logout, user } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: logout }
+      ]
+    );
+  };
+
+  // ✅ Fix: 'shopName' doesn't exist on Buyer type — cast to any or use optional chaining with type guard
+  const shopName = user && 'shopName' in user ? user.shopName : 'Your Shop';
+
   return (
     <Tab.Navigator
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
         tabBarStyle: TAB_BAR_STYLE,
         tabBarActiveTintColor: '#FF7A30',
         tabBarInactiveTintColor: '#9CA3AF',
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        headerTitle: () => (
+          <View style={{ alignItems: 'center' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F1F1F' }}>Vendor Dashboard</Text>
+            {/* ✅ Fix: safely access shopName only when user is a Vendor */}
+            <Text style={{ fontSize: 12, color: '#6B6B6B' }}>{shopName}</Text>
+          </View>
+        ),
+        headerRight: () => (
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={{ marginRight: 15 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={24} color="#FF7A30" />
+          </TouchableOpacity>
+        ),
       }}
     >
       <Tab.Screen
@@ -132,7 +192,18 @@ function VendorTabs() {
 }
 
 export default function AppNavigator() {
-  const { isLoggedIn, role } = useAuth();
+  const { isLoggedIn, role, isLoading } = useAuth();
+
+  // ✅ Fix: if 'isLoading' doesn't exist on AuthContextType, add it to your AuthContext
+  // or remove this loading block if you don't need it
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5EFE6' }}>
+        <ActivityIndicator size="large" color="#FF7A30" />
+        <Text style={{ marginTop: 10, color: '#6B6B6B' }}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>

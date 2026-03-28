@@ -14,6 +14,9 @@
 
 Welcome to the **LocalMart** repository! We're building a vibrant, location-aware marketplace app that connects buyers with nearby vendors seamlessly. Whether you're a local business looking to reach your community or a shopper discovering hidden gems right around the corner, LocalMart makes it happen.
 
+### 🎥 App Preview
+**[Watch the LocalMart Screen Recording Demo](https://drive.google.com/file/d/1K6zunjARGqMpjccaZ0t9GO49zTWuMBRE/view?usp=drivesdk)**
+
 ## 🌟 What is LocalMart?
 
 LocalMart is a mobile application built with React Native and Expo that aims to digitize the local shopping experience. It's designed to be fast, reliable, and incredibly easy to pick up and use for both customers and store owners.

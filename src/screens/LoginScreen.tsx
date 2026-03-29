@@ -1,29 +1,91 @@
+// src/screens/LoginScreen.tsx
+// Real Firebase Auth login/signup — no more demo buttons or mock logic.
+
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, SafeAreaView, TextInput,
-  KeyboardAvoidingView, Platform, ScrollView, Alert,
+  KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 
-export default function LoginScreen({ navigation }: any) {
-  const { switchRole } = useAuth();
-  const [mode, setMode] = useState<'select' | 'buyer' | 'vendor'>('select');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [isLogin, setIsLogin] = useState(true);
+type Mode = 'select' | 'buyer' | 'vendor';
 
-  const handleSubmit = () => {
+export default function LoginScreen({ navigation }: any) {
+  const { login, signUp } = useAuth();
+
+  const [mode, setMode] = useState<Mode>('select');
+  const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  // Form fields
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName]         = useState('');
+  const [phone, setPhone]       = useState('');
+  const [address, setAddress]   = useState('');
+
+  const resetForm = () => {
+    setEmail(''); setPassword(''); setName(''); setPhone(''); setAddress('');
+  };
+
+  const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Missing fields', 'Please enter email and password.');
       return;
     }
-    switchRole(mode as 'buyer' | 'vendor');
+    if (password.length < 6) {
+      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+      return;
+    }
+    if (!isLogin && !name.trim()) {
+      Alert.alert('Missing fields', 'Please enter your name.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (isLogin) {
+        await login(email.trim(), password);
+        // onAuthStateChanged in AuthContext handles navigation automatically
+      } else {
+        if (mode === 'vendor') {
+          // Vendor registration happens on a dedicated screen
+          // We pass email + password so the registration screen can create the account
+          navigation.navigate('VendorRegistration', {
+            email: email.trim(),
+            password,
+            ownerName: name.trim(),
+            phone: phone.trim(),
+          });
+          setLoading(false);
+          return;
+        }
+        // Buyer sign-up
+        await signUp({
+          email: email.trim(),
+          password,
+          name: name.trim(),
+          phone: phone.trim(),
+          role: 'buyer',
+          deliveryAddress: address.trim(),
+        });
+      }
+    } catch (err: any) {
+      const msg =
+        err.code === 'auth/user-not-found'       ? 'No account with this email.' :
+        err.code === 'auth/wrong-password'        ? 'Incorrect password.' :
+        err.code === 'auth/invalid-email'         ? 'Invalid email address.' :
+        err.code === 'auth/email-already-in-use'  ? 'Email already in use.' :
+        err.code === 'auth/invalid-credential'    ? 'Invalid email or password.' :
+        'Something went wrong. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // ── Role Selection Screen ────────────────────────────────────────────────
   if (mode === 'select') {
     return (
       <SafeAreaView className="flex-1" style={{ backgroundColor: '#F5EFE6' }}>
@@ -46,7 +108,6 @@ export default function LoginScreen({ navigation }: any) {
             </Text>
           </View>
 
-          {/* Role cards */}
           <Text className="text-xs font-semibold text-gray-400 uppercase tracking-widest text-center mb-4">
             Continue as
           </Text>
@@ -71,7 +132,7 @@ export default function LoginScreen({ navigation }: any) {
           ].map((item) => (
             <TouchableOpacity
               key={item.role}
-              onPress={() => setMode(item.role)}
+              onPress={() => { resetForm(); setMode(item.role); setIsLogin(true); }}
               activeOpacity={0.85}
               className="bg-white rounded-2xl p-5 mb-3 flex-row items-center"
               style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.07, shadowRadius: 12, elevation: 4 }}
@@ -87,9 +148,9 @@ export default function LoginScreen({ navigation }: any) {
             </TouchableOpacity>
           ))}
 
-          {/* Register as vendor */}
+          {/* Vendor Registration shortcut */}
           <TouchableOpacity
-            onPress={() => navigation.navigate('VendorRegistration')}
+            onPress={() => navigation.navigate('VendorRegistration', {})}
             activeOpacity={0.8}
             className="flex-row items-center justify-center mt-2 py-3"
           >
@@ -98,36 +159,12 @@ export default function LoginScreen({ navigation }: any) {
               Register New Vendor Shop
             </Text>
           </TouchableOpacity>
-
-          {/* Quick demo */}
-          <View className="flex-row items-center mt-5">
-            <View className="flex-1 h-px bg-gray-200" />
-            <Text className="text-xs text-gray-400 mx-3">Quick Demo</Text>
-            <View className="flex-1 h-px bg-gray-200" />
-          </View>
-          <View className="flex-row mt-3 gap-3">
-            <TouchableOpacity
-              onPress={() => switchRole('buyer')}
-              activeOpacity={0.8}
-              className="flex-1 py-3 rounded-xl items-center"
-              style={{ backgroundColor: '#FF7A30' }}
-            >
-              <Text className="text-white font-bold text-sm">Demo Buyer</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => switchRole('vendor')}
-              activeOpacity={0.8}
-              className="flex-1 py-3 rounded-xl items-center border-2"
-              style={{ borderColor: '#FF7A30' }}
-            >
-              <Text className="font-bold text-sm" style={{ color: '#FF7A30' }}>Demo Vendor</Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  // ── Login / Sign-Up Form ─────────────────────────────────────────────────
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F5EFE6' }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
@@ -144,52 +181,85 @@ export default function LoginScreen({ navigation }: any) {
             {isLogin ? 'Welcome back! Sign in to continue.' : 'Create your account to get started.'}
           </Text>
 
+          {/* Name — signup only */}
           {!isLogin && (
             <View className="mb-3">
               <Text className="text-xs font-medium text-gray-600 mb-1">Full Name</Text>
-              <TextInput value={name} onChangeText={setName} placeholder="John Doe"
-                className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900" placeholderTextColor="#9CA3AF" />
+              <TextInput
+                value={name} onChangeText={setName} placeholder="John Doe"
+                className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900"
+                placeholderTextColor="#9CA3AF"
+              />
             </View>
           )}
 
           <View className="mb-3">
             <Text className="text-xs font-medium text-gray-600 mb-1">Email</Text>
-            <TextInput value={email} onChangeText={setEmail} placeholder="you@email.com"
+            <TextInput
+              value={email} onChangeText={setEmail} placeholder="you@email.com"
               keyboardType="email-address" autoCapitalize="none"
-              className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900" placeholderTextColor="#9CA3AF" />
+              className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900"
+              placeholderTextColor="#9CA3AF"
+            />
           </View>
 
           <View className="mb-3">
             <Text className="text-xs font-medium text-gray-600 mb-1">Password</Text>
-            <TextInput value={password} onChangeText={setPassword} placeholder="••••••••"
-              secureTextEntry className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900" placeholderTextColor="#9CA3AF" />
+            <TextInput
+              value={password} onChangeText={setPassword} placeholder="Min. 6 characters"
+              secureTextEntry
+              className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900"
+              placeholderTextColor="#9CA3AF"
+            />
           </View>
 
-          {!isLogin && (
+          {/* Extra fields for buyer sign-up */}
+          {!isLogin && mode === 'buyer' && (
             <>
               <View className="mb-3">
                 <Text className="text-xs font-medium text-gray-600 mb-1">Phone</Text>
-                <TextInput value={phone} onChangeText={setPhone} placeholder="9876543210"
-                  keyboardType="phone-pad" className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900" placeholderTextColor="#9CA3AF" />
+                <TextInput
+                  value={phone} onChangeText={setPhone} placeholder="9876543210"
+                  keyboardType="phone-pad"
+                  className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900"
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
-              {mode === 'buyer' && (
-                <View className="mb-3">
-                  <Text className="text-xs font-medium text-gray-600 mb-1">Delivery Address</Text>
-                  <TextInput value={address} onChangeText={setAddress} placeholder="Your delivery address"
-                    multiline className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900"
-                    style={{ minHeight: 60 }} placeholderTextColor="#9CA3AF" />
-                </View>
-              )}
+              <View className="mb-3">
+                <Text className="text-xs font-medium text-gray-600 mb-1">Delivery Address</Text>
+                <TextInput
+                  value={address} onChangeText={setAddress} placeholder="Your delivery address"
+                  multiline
+                  className="bg-white rounded-xl px-4 py-3 text-sm text-gray-900"
+                  style={{ minHeight: 60 }} placeholderTextColor="#9CA3AF"
+                />
+              </View>
             </>
+          )}
+
+          {/* Vendor sign-up note */}
+          {!isLogin && mode === 'vendor' && (
+            <View className="bg-orange-50 rounded-xl p-3 mb-3 flex-row items-start">
+              <Ionicons name="information-circle-outline" size={18} color="#FF7A30" />
+              <Text className="text-xs text-gray-600 ml-2 flex-1">
+                After entering your email & password, you'll complete your shop profile on the next screen.
+              </Text>
+            </View>
           )}
 
           <TouchableOpacity
             onPress={handleSubmit}
             activeOpacity={0.85}
-            className="py-4 rounded-xl items-center mt-2 mb-3"
-            style={{ backgroundColor: '#FF7A30' }}
+            disabled={loading}
+            className="py-4 rounded-xl items-center mt-2 mb-3 flex-row justify-center"
+            style={{ backgroundColor: loading ? '#FFB088' : '#FF7A30' }}
           >
-            <Text className="text-white text-base font-bold">{isLogin ? 'Sign In' : 'Create Account'}</Text>
+            {loading
+              ? <ActivityIndicator color="#fff" />
+              : <Text className="text-white text-base font-bold">
+                  {isLogin ? 'Sign In' : (mode === 'vendor' ? 'Next →' : 'Create Account')}
+                </Text>
+            }
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => setIsLogin(!isLogin)} className="items-center mb-8">

@@ -1,3 +1,5 @@
+// src/types/index.ts
+
 export interface User {
   id: string;
   name: string;
@@ -56,6 +58,7 @@ export interface Order {
   deliveryAddress: string;
   paymentStatus: 'pending' | 'paid' | 'failed';
   orderStatus: OrderStatus;
+  /** ISO date string (Firestore Timestamps are converted in the service layer) */
   createdAt: string;
   razorpayPaymentId?: string;
   rated?: boolean;

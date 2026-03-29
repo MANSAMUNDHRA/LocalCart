@@ -1,3 +1,6 @@
+// src/screens/BuyerOrdersScreen.tsx
+// Buyer order history — reads realtime from Firestore via OrdersContext.
+
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
@@ -16,12 +19,12 @@ const STATUS_CONFIG: Record<OrderStatus, { color: string; bg: string; icon: stri
 };
 
 export default function BuyerOrdersScreen({ navigation }: any) {
-  const { user } = useAuth();
-  const { orders } = useOrders();
-  const { rateOrder } = useOrders();
-
-  const myOrders = orders.filter((o) => o.buyerId === (user?.id || 'b_demo') || true); // show all in demo
+  const { user, firebaseUid } = useAuth();
+  const { orders, rateOrder } = useOrders();
   const [ratingTarget, setRatingTarget] = useState<Order | null>(null);
+
+  // Only show orders for this buyer
+  const myOrders = orders.filter((o) => o.buyerId === firebaseUid);
 
   return (
     <SafeAreaView className="flex-1" style={{ backgroundColor: '#F5EFE6' }}>
@@ -35,6 +38,7 @@ export default function BuyerOrdersScreen({ navigation }: any) {
           <View className="items-center py-16">
             <Ionicons name="receipt-outline" size={52} color="#D1D5DB" />
             <Text className="text-base text-gray-400 mt-3">No orders yet</Text>
+            <Text className="text-xs text-gray-400 mt-1">Start shopping to see your orders here</Text>
           </View>
         ) : (
           myOrders.map((order) => {

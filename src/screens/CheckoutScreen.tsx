@@ -1,13 +1,16 @@
+// src/screens/CheckoutScreen.tsx
+// Writes orders to Firestore. Razorpay integration preserved.
+
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView,
-  TextInput, Alert, Platform,
+  TextInput, Alert, Platform, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrdersContext';
-import { Buyer, Order } from '../types';
+import { Buyer } from '../types';
 
 // Razorpay — safe import with fallback for simulators that can't link native module
 let RazorpayCheckout: any = null;
@@ -17,49 +20,47 @@ try {
   RazorpayCheckout = null;
 }
 
-// Replace with your Razorpay Test Key
-const RAZORPAY_KEY = 'rzp_test_XXXXXXXXXXXXXX';
+const RAZORPAY_KEY = 'rzp_test_XXXXXXXXXXXXXX'; // Replace with your Razorpay Test Key
 
 export default function CheckoutScreen({ navigation }: any) {
   const { items, totalAmount, clearCart } = useCart();
-  const { user } = useAuth();
-  const { addOrder } = useOrders();
+  const { user, firebaseUid } = useAuth();
+  const { placeOrder } = useOrders();
   const buyer = user as Buyer;
 
-  const [address, setAddress] = useState(buyer?.deliveryAddress || '');
-  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'cod'>('upi');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [address, setAddress]         = useState(buyer?.deliveryAddress || '');
+  const [paymentMethod, setPaymentMethod] = useState<'upi' | 'cod'>('upi');
+  const [isProcessing, setIsProcessing]   = useState(false);
 
   const deliveryFee = totalAmount > 500 ? 0 : 40;
-  const grandTotal = totalAmount + deliveryFee;
+  const grandTotal  = totalAmount + deliveryFee;
 
-  // Build a consolidated order (single vendor assumed; split-order support is extensible)
-  const buildOrder = (paymentId?: string): Order => ({
-    id: `ord_${Date.now()}`,
-    buyerId: buyer?.id || 'guest',
-    buyerName: buyer?.name || 'Guest',
-    vendorId: items[0]?.vendorId || '',
-    vendorName: items[0]?.vendorName || '',
-    items,
-    totalAmount: grandTotal,
-    deliveryAddress: address,
-    paymentStatus: paymentId ? 'paid' : (paymentMethod === 'cod' ? 'pending' : 'paid'),
-    orderStatus: 'pending',
-    createdAt: new Date().toISOString(),
-    razorpayPaymentId: paymentId,
-    rated: false,
-  });
+  const onSuccess = async (paymentId?: string) => {
+    try {
+      await placeOrder({
+        buyerId:   firebaseUid || buyer?.id || 'unknown',
+        buyerName: buyer?.name || 'Guest',
+        vendorId:  items[0]?.vendorId || '',
+        vendorName: items[0]?.vendorName || '',
+        items,
+        totalAmount: grandTotal,
+        deliveryAddress: address,
+        paymentStatus: paymentId ? 'paid' : (paymentMethod === 'cod' ? 'pending' : 'paid'),
+        razorpayPaymentId: paymentId,
+      });
 
-  const onSuccess = (paymentId?: string) => {
-    const order = buildOrder(paymentId);
-    addOrder(order);
-    clearCart();
-    setIsProcessing(false);
-    Alert.alert(
-      '🎉 Order Placed!',
-      'Your order has been placed. Vendors will start preparing shortly.',
-      [{ text: 'OK', onPress: () => navigation.navigate('HomeTab') }]
-    );
+      clearCart();
+      setIsProcessing(false);
+
+      Alert.alert(
+        '🎉 Order Placed!',
+        'Your order has been placed. Vendors will start preparing shortly.',
+        [{ text: 'OK', onPress: () => navigation.navigate('HomeTab') }]
+      );
+    } catch (err: any) {
+      setIsProcessing(false);
+      Alert.alert('Error', err.message || 'Failed to place order. Please try again.');
+    }
   };
 
   const handleRazorpay = () => {
@@ -70,7 +71,7 @@ export default function CheckoutScreen({ navigation }: any) {
     setIsProcessing(true);
 
     if (!RazorpayCheckout || Platform.OS === 'web') {
-      // Fallback for simulator / web
+      // Fallback for simulator / web / missing native module
       setTimeout(() => onSuccess('sim_' + Date.now()), 1500);
       return;
     }
@@ -80,7 +81,7 @@ export default function CheckoutScreen({ navigation }: any) {
       image: 'https://i.imgur.com/3g7nmJC.png',
       currency: 'INR',
       key: RAZORPAY_KEY,
-      amount: grandTotal * 100, // paise
+      amount: grandTotal * 100,
       name: 'LocalMart',
       prefill: {
         email: buyer?.email || 'buyer@localmart.com',
@@ -106,12 +107,12 @@ export default function CheckoutScreen({ navigation }: any) {
       return;
     }
     setIsProcessing(true);
-    setTimeout(() => onSuccess(), 600);
+    onSuccess(); // no payment ID for COD
   };
 
   const paymentMethods = [
-    { id: 'upi' as const,  label: 'UPI / Online',       icon: 'phone-portrait-outline' as const, desc: 'Razorpay — Google Pay, PhonePe, Cards' },
-    { id: 'cod' as const,  label: 'Cash on Delivery',   icon: 'cash-outline' as const,           desc: 'Pay when you receive your order' },
+    { id: 'upi' as const,  label: 'UPI / Online',      icon: 'phone-portrait-outline' as const, desc: 'Razorpay — Google Pay, PhonePe, Cards' },
+    { id: 'cod' as const,  label: 'Cash on Delivery',  icon: 'cash-outline' as const,            desc: 'Pay when you receive your order' },
   ];
 
   return (
@@ -125,7 +126,8 @@ export default function CheckoutScreen({ navigation }: any) {
 
       <ScrollView className="flex-1 px-5" showsVerticalScrollIndicator={false}>
         {/* Delivery Address */}
-        <View className="bg-white rounded-2xl p-4 mb-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+        <View className="bg-white rounded-2xl p-4 mb-4"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
           <View className="flex-row items-center mb-3">
             <View className="w-9 h-9 rounded-full items-center justify-center" style={{ backgroundColor: '#FFF3EC' }}>
               <Ionicons name="location" size={18} color="#FF7A30" />
@@ -133,18 +135,16 @@ export default function CheckoutScreen({ navigation }: any) {
             <Text className="text-base font-bold text-gray-900 ml-2">Delivery Address</Text>
           </View>
           <TextInput
-            value={address}
-            onChangeText={setAddress}
-            placeholder="Enter full delivery address"
-            multiline
+            value={address} onChangeText={setAddress}
+            placeholder="Enter full delivery address" multiline
             className="bg-gray-50 rounded-xl px-4 py-3 text-sm text-gray-900"
-            style={{ minHeight: 70 }}
-            placeholderTextColor="#9CA3AF"
+            style={{ minHeight: 70 }} placeholderTextColor="#9CA3AF"
           />
         </View>
 
         {/* Order Summary */}
-        <View className="bg-white rounded-2xl p-4 mb-4" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+        <View className="bg-white rounded-2xl p-4 mb-4"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
           <View className="flex-row items-center mb-3">
             <View className="w-9 h-9 rounded-full items-center justify-center" style={{ backgroundColor: '#FFF3EC' }}>
               <Ionicons name="receipt" size={18} color="#FF7A30" />
@@ -178,7 +178,8 @@ export default function CheckoutScreen({ navigation }: any) {
         </View>
 
         {/* Payment Method */}
-        <View className="bg-white rounded-2xl p-4 mb-6" style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+        <View className="bg-white rounded-2xl p-4 mb-6"
+          style={{ shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
           <View className="flex-row items-center mb-3">
             <View className="w-9 h-9 rounded-full items-center justify-center" style={{ backgroundColor: '#FFF3EC' }}>
               <Ionicons name="wallet" size={18} color="#FF7A30" />
@@ -187,14 +188,11 @@ export default function CheckoutScreen({ navigation }: any) {
           </View>
           {paymentMethods.map((pm) => (
             <TouchableOpacity
-              key={pm.id}
-              onPress={() => setPaymentMethod(pm.id)}
-              activeOpacity={0.7}
+              key={pm.id} onPress={() => setPaymentMethod(pm.id)} activeOpacity={0.7}
               className="flex-row items-center p-3 rounded-xl mb-2"
               style={{
                 backgroundColor: paymentMethod === pm.id ? '#FFF3EC' : '#F9FAFB',
-                borderWidth: paymentMethod === pm.id ? 1.5 : 0,
-                borderColor: '#FF7A30',
+                borderWidth: paymentMethod === pm.id ? 1.5 : 0, borderColor: '#FF7A30',
               }}
             >
               <Ionicons name={pm.icon} size={20} color={paymentMethod === pm.id ? '#FF7A30' : '#9CA3AF'} />
@@ -219,18 +217,19 @@ export default function CheckoutScreen({ navigation }: any) {
       >
         <TouchableOpacity
           onPress={paymentMethod === 'cod' ? handleCOD : handleRazorpay}
-          activeOpacity={0.85}
-          disabled={isProcessing}
+          activeOpacity={0.85} disabled={isProcessing}
           className="py-4 rounded-xl items-center flex-row justify-center"
           style={{ backgroundColor: isProcessing ? '#FFB088' : '#FF7A30' }}
         >
           {isProcessing ? (
-            <Text className="text-white text-base font-bold">Processing...</Text>
+            <ActivityIndicator color="#fff" />
           ) : (
             <>
               <Ionicons name={paymentMethod === 'cod' ? 'cart' : 'lock-closed'} size={18} color="#fff" />
               <Text className="text-white text-base font-bold ml-2">
-                {paymentMethod === 'cod' ? `Place Order • ₹${grandTotal.toLocaleString()}` : `Pay Now • ₹${grandTotal.toLocaleString()}`}
+                {paymentMethod === 'cod'
+                  ? `Place Order • ₹${grandTotal.toLocaleString()}`
+                  : `Pay Now • ₹${grandTotal.toLocaleString()}`}
               </Text>
             </>
           )}

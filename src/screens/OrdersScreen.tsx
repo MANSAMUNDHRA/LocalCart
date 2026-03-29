@@ -1,3 +1,6 @@
+// src/screens/OrdersScreen.tsx
+// Vendor incoming orders — reads realtime from Firestore via OrdersContext.
+
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, SafeAreaView, Alert,
@@ -16,11 +19,11 @@ const STATUS_CONFIG: Record<OrderStatus, { color: string; bg: string; icon: stri
 
 export default function OrdersScreen({ navigation }: any) {
   const { orders, updateOrderStatus } = useOrders();
-  const { user } = useAuth();
+  const { firebaseUid } = useAuth();
   const [filter, setFilter] = useState<OrderStatus | 'all'>('all');
 
-  // In demo, show all orders for the mocked vendor
-  const vendorOrders = orders.filter((o) => o.vendorId === (user as any)?.id || true);
+  // Only show orders for this vendor
+  const vendorOrders = orders.filter((o) => o.vendorId === firebaseUid);
   const filtered = filter === 'all' ? vendorOrders : vendorOrders.filter((o) => o.orderStatus === filter);
 
   const advance = (order: Order) => {
@@ -28,15 +31,23 @@ export default function OrdersScreen({ navigation }: any) {
     if (!sc.next) return;
     Alert.alert('Update Status', `Mark this order as "${sc.next}"?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm', onPress: () => updateOrderStatus(order.id, sc.next!) },
+      {
+        text: 'Confirm', onPress: async () => {
+          try {
+            await updateOrderStatus(order.id, sc.next!);
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to update status.');
+          }
+        }
+      },
     ]);
   };
 
   const filters: { label: string; value: OrderStatus | 'all' }[] = [
-    { label: 'All', value: 'all' },
-    { label: 'Pending', value: 'pending' },
+    { label: 'All',       value: 'all' },
+    { label: 'Pending',   value: 'pending' },
     { label: 'Preparing', value: 'preparing' },
-    { label: 'Ready', value: 'ready' },
+    { label: 'Ready',     value: 'ready' },
     { label: 'Delivered', value: 'delivered' },
   ];
 
@@ -50,8 +61,7 @@ export default function OrdersScreen({ navigation }: any) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 10 }}>
         {filters.map((f) => (
           <TouchableOpacity
-            key={f.value}
-            onPress={() => setFilter(f.value)}
+            key={f.value} onPress={() => setFilter(f.value)}
             className="mr-2 px-4 py-2 rounded-full"
             style={{ backgroundColor: filter === f.value ? '#FF7A30' : '#fff' }}
           >
@@ -100,7 +110,9 @@ export default function OrdersScreen({ navigation }: any) {
                     <Text className="text-xs text-gray-700 flex-1" numberOfLines={1}>
                       {item.product.name} × {item.quantity}
                     </Text>
-                    <Text className="text-xs font-medium text-gray-800">₹{(item.product.price * item.quantity).toLocaleString()}</Text>
+                    <Text className="text-xs font-medium text-gray-800">
+                      ₹{(item.product.price * item.quantity).toLocaleString()}
+                    </Text>
                   </View>
                 ))}
 
@@ -110,8 +122,7 @@ export default function OrdersScreen({ navigation }: any) {
                   </Text>
                   {sc.next && (
                     <TouchableOpacity
-                      onPress={() => advance(order)}
-                      activeOpacity={0.8}
+                      onPress={() => advance(order)} activeOpacity={0.8}
                       className="flex-row items-center px-4 py-2 rounded-full"
                       style={{ backgroundColor: sc.color }}
                     >

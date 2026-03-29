@@ -49,7 +49,7 @@ function BuyerTabs() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: logout }
+        { text: 'Logout', style: 'destructive', onPress: async () => { try { await logout(); } catch {} } }
       ]
     );
   };
@@ -137,7 +137,7 @@ function VendorTabs() {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: logout }
+        { text: 'Logout', style: 'destructive', onPress: async () => { try { await logout(); } catch {} } }
       ]
     );
   };

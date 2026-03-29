@@ -1,20 +1,43 @@
 // src/context/AuthContext.tsx
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Vendor, Buyer } from '../types';
+// Real Firebase Auth context — replaces all mock/demo login logic.
+
+import React, {
+  createContext, useContext, useState, useEffect, ReactNode,
+} from 'react';
+import { Buyer, Vendor } from '../types';
+import {
+  subscribeToAuthState,
+  fetchUserDoc,
+  fetchVendorDoc,
+  loginWithEmail,
+  signUpWithEmail,
+  logoutUser,
+  CreateUserPayload,
+} from '../lib/firebaseServices';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface AuthState {
   user: (Buyer | Vendor) | null;
   role: 'buyer' | 'vendor' | null;
   isLoggedIn: boolean;
-  isLoading: boolean; // ✅ Added
+  isLoading: boolean;
+  firebaseUid: string | null;
 }
 
 interface AuthContextType extends AuthState {
-  loginAsBuyer: (buyer: Buyer) => void;
-  loginAsVendor: (vendor: Vendor) => void;
-  logout: () => void;
-  switchRole: (role: 'buyer' | 'vendor') => void;
+  login: (email: string, password: string) => Promise<void>;
+  signUp: (payload: CreateUserPayload) => Promise<void>;
+  logout: () => Promise<void>;
+  /** Call this after vendor profile is created to update context without re-auth */
+  setVendorProfile: (vendor: Vendor) => void;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Context
+// ─────────────────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -23,45 +46,103 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     user: null,
     role: null,
     isLoggedIn: false,
-    isLoading: false, // ✅ Added — set true if you ever do async auth (e.g. AsyncStorage)
+    isLoading: true,   // true on boot while Firebase resolves auth state
+    firebaseUid: null,
   });
 
-  const loginAsBuyer = (buyer: Buyer) => {
-    setState({ user: buyer, role: 'buyer', isLoggedIn: true, isLoading: false });
+  // ── Listen to Firebase Auth state ──────────────────────────────────────────
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthState(async (firebaseUser) => {
+      if (!firebaseUser) {
+        setState({ user: null, role: null, isLoggedIn: false, isLoading: false, firebaseUid: null });
+        return;
+      }
+
+      try {
+        // Fetch the user document which tells us the role
+        const userDoc = await fetchUserDoc(firebaseUser.uid);
+        if (!userDoc) {
+          // Document doesn't exist yet (e.g. mid-registration); stay loading
+          setState({ user: null, role: null, isLoggedIn: false, isLoading: false, firebaseUid: firebaseUser.uid });
+          return;
+        }
+
+        if (userDoc.role === 'vendor') {
+          // Fetch the full vendor profile
+          const vendorDoc = await fetchVendorDoc(firebaseUser.uid);
+          if (vendorDoc) {
+            setState({
+              user: vendorDoc,
+              role: 'vendor',
+              isLoggedIn: true,
+              isLoading: false,
+              firebaseUid: firebaseUser.uid,
+            });
+          } else {
+            // Auth exists, user doc says vendor, but no vendor profile yet
+            // (happens if registration was interrupted mid-way)
+            setState({
+              user: null,
+              role: null,
+              isLoggedIn: false,
+              isLoading: false,
+              firebaseUid: firebaseUser.uid,
+            });
+          }
+        } else {
+          setState({
+            user: userDoc as Buyer,
+            role: 'buyer',
+            isLoggedIn: true,
+            isLoading: false,
+            firebaseUid: firebaseUser.uid,
+          });
+        }
+      } catch (err) {
+        console.error('[AuthContext] onAuthStateChanged error:', err);
+        setState({ user: null, role: null, isLoggedIn: false, isLoading: false, firebaseUid: null });
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // ── Actions ────────────────────────────────────────────────────────────────
+
+  const login = async (email: string, password: string): Promise<void> => {
+    // isLoading will flip to true via onAuthStateChanged automatically
+    await loginWithEmail(email, password);
+    // onAuthStateChanged fires and fills state
   };
 
-  const loginAsVendor = (vendor: Vendor) => {
-    setState({ user: vendor, role: 'vendor', isLoggedIn: true, isLoading: false });
+  const signUp = async (payload: CreateUserPayload): Promise<void> => {
+    await signUpWithEmail(payload);
+    // onAuthStateChanged fires and fills state
   };
 
-  const logout = () => {
-    setState({ user: null, role: null, isLoggedIn: false, isLoading: false });
+  const logout = async (): Promise<void> => {
+    await logoutUser();
+    // onAuthStateChanged fires and clears state
   };
 
-  const switchRole = (role: 'buyer' | 'vendor') => {
-    if (role === 'buyer') {
-      loginAsBuyer({
-        id: 'b_demo',
-        name: 'Demo Buyer',
-        email: 'buyer@localmart.com',
-        phone: '9999999999',
-        role: 'buyer',
-        deliveryAddress: '42, Koramangala, Bangalore 560034',
-      });
-    } else {
-      const { VENDORS } = require('../data/mockData');
-      loginAsVendor(VENDORS[0]);
-    }
+  /** After vendor completes profile creation, update context immediately */
+  const setVendorProfile = (vendor: Vendor) => {
+    setState((prev) => ({
+      ...prev,
+      user: vendor,
+      role: 'vendor',
+      isLoggedIn: true,
+    }));
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, loginAsBuyer, loginAsVendor, logout, switchRole }}>
+    <AuthContext.Provider value={{ ...state, login, signUp, logout, setVendorProfile }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
   return ctx;

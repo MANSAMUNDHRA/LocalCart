@@ -1,25 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { PRODUCTS } from '../data/mockData';
 import { useCart } from '../context/CartContext';
 import { useLocation } from '../context/LocationContext';
 import { formatDistance } from '../lib/distance';
+import { subscribeToVendorProducts } from '../lib/firebaseServices';
 import ProductCard from '../components/ProductCard';
-import { Vendor } from '../types';
+import { Vendor, Product } from '../types';
 
 export default function VendorProfileScreen({ route, navigation }: any) {
   const vendor: Vendor = route.params.vendor;
   const { addToCart } = useCart();
   const { calcDistance } = useLocation();
   const [addedId, setAddedId] = useState<string | null>(null);
+  const [vendorProducts, setVendorProducts] = useState<Product[]>([]);
 
-  const vendorProducts = PRODUCTS.filter((p) => p.vendorId === vendor.id);
+  useEffect(() => {
+    const unsubscribe = subscribeToVendorProducts(vendor.id, (incoming) => setVendorProducts(incoming));
+    return unsubscribe;
+  }, [vendor.id]);
+
   const distance = calcDistance(vendor.latitude, vendor.longitude);
 
-  const handleAdd = (product: any) => {
+  const handleAdd = (product: Product) => {
     addToCart(product, vendor.id, vendor.shopName);
     setAddedId(product.id);
     setTimeout(() => setAddedId(null), 1200);

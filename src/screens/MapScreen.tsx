@@ -1,19 +1,26 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocation } from '../context/LocationContext';
-import { VENDORS } from '../data/mockData';
+import { subscribeToVendors } from '../lib/firebaseServices';
 import { formatDistance } from '../lib/distance';
+import { Vendor } from '../types';
 
 export default function MapScreen({ navigation }: any) {
   const { location, radius, calcDistance, locationName } = useLocation();
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToVendors((incoming) => setVendors(incoming));
+    return unsubscribe;
+  }, []);
 
   const nearbyVendors = useMemo(() => {
-    return VENDORS.map((v) => ({ ...v, distance: calcDistance(v.latitude, v.longitude) }))
+    return vendors.map((v) => ({ ...v, distance: calcDistance(v.latitude, v.longitude) }))
       .filter((v) => v.distance <= radius)
       .sort((a, b) => a.distance - b.distance);
-  }, [radius, calcDistance]);
+  }, [vendors, radius, calcDistance]);
 
   const initialRegion = {
     latitude: location?.latitude ?? 12.9716,

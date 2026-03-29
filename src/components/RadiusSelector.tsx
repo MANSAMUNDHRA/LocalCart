@@ -1,7 +1,15 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { RADIUS_OPTIONS } from '../data/mockData';
+
+const RADIUS_OPTIONS = [
+  { label: '1 km — Hyperlocal', value: 1 },
+  { label: '3 km — Neighbourhood', value: 3 },
+  { label: '5 km — Nearby', value: 5 },
+  { label: '10 km — City wide', value: 10 },
+  { label: '25 km — Metro area', value: 25 },
+];
+
 
 interface RadiusSelectorProps {
   visible: boolean;
